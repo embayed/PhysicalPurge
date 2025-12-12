@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.12" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Intalio.Storage.FileSystem">
+      <HintPath>References\Intalio.Storage.FileSystem.dll</HintPath>
+    </Reference>
+    <Reference Include="Intalio.Storage.FileSystem.Core">
+      <HintPath>References\Intalio.Storage.FileSystem.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Intalio.Storage.Interface">
+      <HintPath>References\Intalio.Storage.Interface.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
