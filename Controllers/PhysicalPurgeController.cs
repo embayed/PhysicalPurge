@@ -66,15 +66,15 @@ public class PhysicalPurgeController : ControllerBase
         return Ok(response);
     }
 
-    // DELETE /PhysicalPurge/Delete/{id}
-    [HttpDelete("Delete/{id:long}")]
-    public async Task<IActionResult> Delete(long id)
+    // DELETE /PhysicalPurge/Delete/{fileId}/{storageAttachmentId}
+    [HttpDelete("Delete/{fileId:long}/{storageAttachmentId:long}")]
+    public async Task<IActionResult> Delete(long fileId, long storageAttachmentId)
     {
-        // Step 0: update File table first
-        var file = await _db.Files.FirstOrDefaultAsync(f => f.Id == id);
+        // Step 0: update File table using fileId
+        var file = await _db.Files.FirstOrDefaultAsync(f => f.Id == fileId);
         if (file == null)
         {
-            return NotFound(new { message = "File not found." });
+            return NotFound(new { message = "File not found with the given fileId." });
         }
 
         file.IsPhysicallyPurged = true;
@@ -82,29 +82,38 @@ public class PhysicalPurgeController : ControllerBase
 
         var storage = new ManageStorage();
 
-        // Step 1: logical delete (move to recycle bin)
-        var logicalDeleteResult = await storage.DeleteFile(id);
+        // Step 1: Logical delete using storageAttachmentId
+        var logicalDeleteResult = await storage.DeleteFile(storageAttachmentId);
         if (!logicalDeleteResult)
         {
-            return StatusCode(500, new { message = "Logical delete failed after database update." });
+            return StatusCode(500, new
+            {
+                message = "Logical delete failed after database update.",
+                storageAttachmentId
+            });
         }
 
-        // Step 2: physical delete
+        // Step 2: Physical delete using storageAttachmentId
         var recycleItem = new RecycleBinItemModel
         {
-            Id = id,
+            Id = storageAttachmentId,
             Type = ItemType.Attachment
         };
 
         var physicalDeleteResult = await storage.DeleteItem(recycleItem);
         if (!physicalDeleteResult)
         {
-            return StatusCode(500, new { message = "Physical delete failed after database update." });
+            return StatusCode(500, new
+            {
+                message = "Physical delete failed after database update.",
+                storageAttachmentId
+            });
         }
 
         return Ok(new
         {
-            id,
+            fileId,
+            storageAttachmentId,
             physicallyPurged = true
         });
     }

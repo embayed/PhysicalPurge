@@ -1,5 +1,11 @@
+using System;
+using Intalio.Storage.FileSystem.Core;
+using Intalio.Storage.Interface;
 using Microsoft.EntityFrameworkCore;
 using PhysicalStoragePurge.Data;
+
+
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +27,14 @@ builder.Services.AddDbContext<DmsDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DmsDb")));
 
 
+Configuration.DbConnectionString = builder.Configuration.GetConnectionString("StorageDb");
+Configuration.DatabaseType = DatabaseType.PostgreSQL;
+Configuration.IsConnectionStringEncrypted = false;
+
+
+
+
+
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -29,16 +43,17 @@ builder.Services.AddSwaggerGen();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
     app.UseSwagger();
     app.UseSwaggerUI();
-}
+
 
 app.UseAuthorization();
 
 // Apply CORS BEFORE controllers
 app.UseCors(CorsPolicyName);
+
+app.MapGet("/", () => Results.Redirect("/swagger"));
+
 
 app.MapControllers();
 
