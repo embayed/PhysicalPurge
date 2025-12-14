@@ -1,10 +1,7 @@
-﻿using Intalio.Storage.FileSystem.Core.API;
-using Intalio.Storage.Interface;
-using Intalio.Storage.Interface.Model;
+using System.Threading;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using PhysicalStoragePurge.Data;
 using PhysicalStoragePurge.DTO;
+using PhysicalStoragePurge.Services;
 
 namespace PhysicalStoragePurge.Controllers;
 
@@ -12,11 +9,11 @@ namespace PhysicalStoragePurge.Controllers;
 [ApiController]
 public class PhysicalPurgeController : ControllerBase
 {
-    private readonly DmsDbContext _db;
+    private readonly IPhysicalPurgeService _physicalPurgeService;
 
-    public PhysicalPurgeController(DmsDbContext db)
+    public PhysicalPurgeController(IPhysicalPurgeService physicalPurgeService)
     {
-        _db = db;
+        _physicalPurgeService = physicalPurgeService;
     }
 
     // GET /PhysicalPurge/List?page=1&pageSize=10&hasDeletionDate=true
@@ -24,98 +21,35 @@ public class PhysicalPurgeController : ControllerBase
     public async Task<IActionResult> List(
         int page = 1,
         int pageSize = 10,
-        bool hasDeletionDate = true)
+        bool hasDeletionDate = true,
+        CancellationToken cancellationToken = default)
     {
-        if (page < 1) page = 1;
-        if (pageSize <= 0) pageSize = 10;
-
-        // base query: only deleted files
-        var query = _db.Files
-            .Where(f => f.IsDeleted && !f.IsPhysicallyPurged);
-
-        // optional filter: only rows with DeletionDate
-        if (hasDeletionDate)
-        {
-            query = query.Where(f => f.DeletionDate != null);
-        }
-
-        var total = await query.CountAsync();
-
-        var items = await query
-            .OrderBy(f => f.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(f => new PhysicalPurgeItem
-            {
-                Id = f.Id,
-                Name = f.Name,
-                Path = f.Path,
-                Extension = f.Extension,
-                DeletionDate = f.DeletionDate,
-                StorageAttachmentId = f.StorageAttachmentId
-            })
-            .ToListAsync();
-
-        var response = new PhysicalPurgeListResponse
-        {
-            totalCount = total,
-            filteredCount = total,
-            data = items
-        };
+        var response = await _physicalPurgeService.GetPendingPurgesAsync(page, pageSize, hasDeletionDate, cancellationToken);
 
         return Ok(response);
     }
 
     // DELETE /PhysicalPurge/Delete/{fileId}/{storageAttachmentId}
     [HttpDelete("Delete/{fileId:long}/{storageAttachmentId:long}")]
-    public async Task<IActionResult> Delete(long fileId, long storageAttachmentId)
+    public async Task<IActionResult> Delete(long fileId, long storageAttachmentId, CancellationToken cancellationToken = default)
     {
-        // Step 0: update File table using fileId
-        var file = await _db.Files.FirstOrDefaultAsync(f => f.Id == fileId);
-        if (file == null)
+        var result = await _physicalPurgeService.DeleteAsync(fileId, storageAttachmentId, cancellationToken);
+
+        if (!result.Success)
         {
-            return NotFound(new { message = "File not found with the given fileId." });
-        }
-
-        file.IsPhysicallyPurged = true;
-        await _db.SaveChangesAsync();
-
-        var storage = new ManageStorage();
-
-        // Step 1: Logical delete using storageAttachmentId
-        var logicalDeleteResult = await storage.DeleteFile(storageAttachmentId);
-        if (!logicalDeleteResult)
-        {
-            return StatusCode(500, new
+            return StatusCode(result.StatusCode, new
             {
-                message = "Logical delete failed after database update.",
-                storageAttachmentId
-            });
-        }
-
-        // Step 2: Physical delete using storageAttachmentId
-        var recycleItem = new RecycleBinItemModel
-        {
-            Id = storageAttachmentId,
-            Type = ItemType.Attachment
-        };
-
-        var physicalDeleteResult = await storage.DeleteItem(recycleItem);
-        if (!physicalDeleteResult)
-        {
-            return StatusCode(500, new
-            {
-                message = "Physical delete failed after database update.",
-                storageAttachmentId
+                message = result.ErrorMessage,
+                result.FileId,
+                result.StorageAttachmentId
             });
         }
 
         return Ok(new
         {
-            fileId,
-            storageAttachmentId,
+            result.FileId,
+            result.StorageAttachmentId,
             physicallyPurged = true
         });
     }
-
 }

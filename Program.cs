@@ -1,8 +1,11 @@
 using System;
 using Intalio.Storage.FileSystem.Core;
+using Intalio.Storage.FileSystem.Core.API;
 using Intalio.Storage.Interface;
 using Microsoft.EntityFrameworkCore;
 using PhysicalStoragePurge.Data;
+using PhysicalStoragePurge.Repositories;
+using PhysicalStoragePurge.Services;
 
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -25,6 +28,10 @@ builder.Services.AddCors(options =>
 // Add DbContext
 builder.Services.AddDbContext<DmsDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DmsDb")));
+
+builder.Services.AddScoped<IFileRepository, FileRepository>();
+builder.Services.AddScoped<IPhysicalPurgeService, PhysicalPurgeService>();
+builder.Services.AddScoped<ManageStorage>();
 
 
 Configuration.DbConnectionString = builder.Configuration.GetConnectionString("StorageDb");
